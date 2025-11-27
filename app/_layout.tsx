@@ -1,29 +1,30 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-const { height } = Dimensions.get('window');
+const { height } = Dimensions.get("window");
 
 type Message = {
   id: string;
   text: string;
-  sender: 'user' | 'ai';
+  sender: "user" | "ai";
 };
 
 // import { useNetInfo } from '@react-native-community/netinfo';
 
 export default function RootLayout() {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState("");
   const flatListRef = useRef<FlatList>(null);
   // const netInfo = useNetInfo();
   // const [isConnected, setIsConnected] = useState(netInfo.isConnected);
@@ -32,17 +33,17 @@ export default function RootLayout() {
       const userMsg: Message = {
         id: Date.now().toString(),
         text: inputText,
-        sender: 'user',
+        sender: "user",
       };
       setMessages((prevMessages) => [...prevMessages, userMsg]);
-      setInputText('');
+      setInputText("");
 
       // AI 응답 시뮬레이션
       setTimeout(() => {
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
-          text: `AI Answer to: ${userMsg.text}`,
-          sender: 'ai',
+          text: `동해 물과 백두산이 마르고 닳도록 하느님이 보우하사 우리나라 만세 무궁화 삼천리 화려 강산 대한 사람 대한으로 길이 보전하세\n\n남산 위에 저 소나무 철갑을 두른 듯 바람 서리 불변함은 `,
+          sender: "ai",
         };
         setMessages((prevMessages) => [...prevMessages, aiMsg]);
       }, 1500);
@@ -56,7 +57,9 @@ export default function RootLayout() {
     if (messages.length > 0) {
       // 뒤에서부터 탐색하여 가장 최근의 '사용자' 메시지를 찾습니다.
       // 이렇게 하면 AI 답변이 이미 달린 상태라도(마지막 메시지가 AI라도) 사용자의 질문 위치를 찾을 수 있습니다.
-      const lastUserMessageIndex = messages.map((m) => m.sender).lastIndexOf('user');
+      const lastUserMessageIndex = messages
+        .map((m) => m.sender)
+        .lastIndexOf("user");
 
       if (lastUserMessageIndex !== -1) {
         const lastUserMessage = messages[lastUserMessageIndex];
@@ -94,11 +97,63 @@ export default function RootLayout() {
     });
   };
 
+  // 스크롤이 시작될 때 키보드를 닫는 핸들러
+  const handleScrollBeginDrag = () => {
+    Keyboard.dismiss();
+  };
+
+  // Footer 높이를 동적으로 계산
+  // 목적: 사용자 메시지가 최상단에 위치하도록 유지
+  // AI 답변이 추가되어도 사용자 메시지 위치를 유지하기 위해 Footer 높이를 조정
+  const calculateFooterHeight = () => {
+    if (messages.length === 0) return 0;
+
+    // 마지막 사용자 메시지의 인덱스를 찾습니다
+    const lastUserMessageIndex = messages
+      .map((m) => m.sender)
+      .lastIndexOf("user");
+
+    // 사용자 메시지가 없으면 Footer 불필요
+    if (lastUserMessageIndex === -1) return 0;
+
+    // 마지막 사용자 메시지 이후의 모든 메시지(AI 답변들)를 확인
+    const messagesAfterUser = messages.slice(lastUserMessageIndex + 1);
+
+    // 기본 Footer 높이 (사용자 메시지가 최상단에 위치하도록 하는 공간)
+    const baseFooterHeight = height * 0.8;
+
+    // AI 답변들의 예상 높이를 계산
+    // 텍스트 길이와 줄바꿈을 기반으로 대략적인 높이 추정
+    // (실제 렌더링 높이와는 다를 수 있지만, 근사치로 사용)
+    let aiMessagesHeight = 0;
+    const lineHeight = 24; // fontSize(16) + line spacing 추정
+    const padding = 20; // messageItem의 padding(10*2)
+    const marginBottom = 10; // messageItem의 marginBottom
+
+    messagesAfterUser.forEach((msg) => {
+      // 줄바꿈 개수 계산 (\n 개수 + 1)
+      const lineBreaks = (msg.text.match(/\n/g) || []).length + 1;
+      // 텍스트가 화면 너비의 80%를 차지한다고 가정하고 줄 수 추정
+      const estimatedLines = Math.max(
+        lineBreaks,
+        Math.ceil(msg.text.length / 30) // 대략 한 줄에 30자
+      );
+      // 메시지 높이 = (줄 수 * 줄 높이) + 패딩 + 마진
+      aiMessagesHeight += estimatedLines * lineHeight + padding + marginBottom;
+    });
+
+    // Footer 높이 = 기본 높이 - AI 답변들의 높이
+    // 최소 높이를 유지하여 사용자 메시지가 최상단에 위치하도록 함
+    const calculatedHeight = baseFooterHeight - aiMessagesHeight;
+    return Math.max(calculatedHeight, height * 0.2); // 최소 20% 높이 유지
+  };
+
+  const footerHeight = calculateFooterHeight();
+
   return (
     <SafeAreaView style={styles.container}>
-
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
       >
         <FlatList
@@ -108,7 +163,7 @@ export default function RootLayout() {
             <View
               style={[
                 styles.messageItem,
-                item.sender === 'user' ? styles.userMessage : styles.aiMessage,
+                item.sender === "user" ? styles.userMessage : styles.aiMessage,
               ]}
             >
               <Text style={styles.messageText}>{item.text}</Text>
@@ -117,8 +172,9 @@ export default function RootLayout() {
           keyExtractor={(item) => item.id}
           style={styles.list}
           contentContainerStyle={styles.listContent}
-          ListFooterComponent={<View style={{ height: height * 0.8 }} />}
+          ListFooterComponent={<View style={{ height: footerHeight }} />}
           onScrollToIndexFailed={onScrollToIndexFailed}
+          onScrollBeginDrag={handleScrollBeginDrag}
         />
         <View style={styles.inputContainer}>
           <TextInput
@@ -139,7 +195,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: "white",
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -154,43 +210,43 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
     marginBottom: 10,
-    maxWidth: '80%',
+    maxWidth: "80%",
   },
   userMessage: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#007AFF',
+    alignSelf: "flex-end",
+    backgroundColor: "#007AFF",
   },
   aiMessage: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#f0f0f0',
+    alignSelf: "flex-start",
+    backgroundColor: "#f0f0f0",
   },
   messageText: {
     fontSize: 16,
-    color: 'black', // 기본 텍스트 색상
+    color: "black", // 기본 텍스트 색상
   },
   inputContainer: {
     padding: 10,
     borderTopWidth: 1,
-    borderTopColor: '#eee',
-    backgroundColor: 'white', // Set to white so the input field background is not transparent
+    borderTopColor: "#eee",
+    backgroundColor: "white", // Set to white so the input field background is not transparent
   },
   input: {
     height: 40,
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: "#ddd",
     borderRadius: 20,
     paddingHorizontal: 15,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
   },
   offlineContainer: {
-    backgroundColor: '#b52424',
+    backgroundColor: "#b52424",
     height: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'row',
-    width: '100%',
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    width: "100%",
   },
   offlineText: {
-    color: '#fff',
+    color: "#fff",
   },
 });
