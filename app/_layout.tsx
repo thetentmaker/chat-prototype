@@ -94,7 +94,7 @@ export default function RootLayout() {
               return msg;
             })
           );
-        }, 30); // 30ms마다 한 글자씩 (조절 가능)
+        }, 10); // 30ms마다 한 글자씩 (조절 가능)
       } else {
         // 타이핑 완료
         if (typingIntervalRef.current) {
@@ -163,9 +163,9 @@ export default function RootLayout() {
     Keyboard.dismiss();
   };
 
-  // Footer 높이를 동적으로 계산
+  // Footer 높이를 계산
   // 목적: 사용자 메시지가 최상단에 위치하도록 유지
-  // AI 답변이 추가되어도 사용자 메시지 위치를 유지하기 위해 Footer 높이를 조정
+  // AI 답변이 추가되어도 Footer 높이를 고정하여 사용자 메시지 위치를 유지
   const calculateFooterHeight = () => {
     if (messages.length === 0) return 0;
 
@@ -177,36 +177,9 @@ export default function RootLayout() {
     // 사용자 메시지가 없으면 Footer 불필요
     if (lastUserMessageIndex === -1) return 0;
 
-    // 마지막 사용자 메시지 이후의 모든 메시지(AI 답변들)를 확인
-    const messagesAfterUser = messages.slice(lastUserMessageIndex + 1);
-
-    // 기본 Footer 높이 (사용자 메시지가 최상단에 위치하도록 하는 공간)
-    const baseFooterHeight = height * 0.8;
-
-    // AI 답변들의 예상 높이를 계산
-    // 텍스트 길이와 줄바꿈을 기반으로 대략적인 높이 추정
-    // (실제 렌더링 높이와는 다를 수 있지만, 근사치로 사용)
-    let aiMessagesHeight = 0;
-    const lineHeight = 24; // fontSize(16) + line spacing 추정
-    const padding = 20; // messageItem의 padding(10*2)
-    const marginBottom = 10; // messageItem의 marginBottom
-
-    messagesAfterUser.forEach((msg) => {
-      // 줄바꿈 개수 계산 (\n 개수 + 1)
-      const lineBreaks = (msg.text.match(/\n/g) || []).length + 1;
-      // 텍스트가 화면 너비의 80%를 차지한다고 가정하고 줄 수 추정
-      const estimatedLines = Math.max(
-        lineBreaks,
-        Math.ceil(msg.text.length / 30) // 대략 한 줄에 30자
-      );
-      // 메시지 높이 = (줄 수 * 줄 높이) + 패딩 + 마진
-      aiMessagesHeight += estimatedLines * lineHeight + padding + marginBottom;
-    });
-
-    // Footer 높이 = 기본 높이 - AI 답변들의 높이
-    // 최소 높이를 유지하여 사용자 메시지가 최상단에 위치하도록 함
-    const calculatedHeight = baseFooterHeight - aiMessagesHeight;
-    return Math.max(calculatedHeight, height * 0.2); // 최소 20% 높이 유지
+    // 사용자 메시지가 있으면 화면 높이의 75%를 Footer로 고정
+    // 이렇게 하면 AI 답변이 추가되어도 사용자 메시지는 화면 최상단에 유지됩니다
+    return height * 0.75;
   };
 
   const footerHeight = calculateFooterHeight();
