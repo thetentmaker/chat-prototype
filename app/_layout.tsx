@@ -17,7 +17,9 @@ const { height } = Dimensions.get("window");
 type Message = {
   id: string;
   text: string;
+  displayedText?: string; // 타이핑 효과를 위한 표시된 텍스트
   sender: "user" | "ai";
+  isTyping?: boolean; // 타이핑 중인지 여부
 };
 
 // import { useNetInfo } from '@react-native-community/netinfo';
@@ -26,6 +28,7 @@ export default function RootLayout() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const flatListRef = useRef<FlatList>(null);
+  const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // const netInfo = useNetInfo();
   // const [isConnected, setIsConnected] = useState(netInfo.isConnected);
   const sendMessage = () => {
@@ -40,10 +43,16 @@ export default function RootLayout() {
 
       // AI 응답 시뮬레이션
       setTimeout(() => {
+        // 애국가 4절을 4번 반복
+        const anthem = `동해 물과 백두산이 마르고 닳도록 하느님이 보우하사 우리나라 만세 무궁화 삼천리 화려 강산 대한 사람 대한으로 길이 보전하세\n\n남산 위에 저 소나무 철갑을 두른 듯 바람 서리 불변함은 우리 기상일세 무궁화 삼천리 화려 강산 대한 사람 대한으로 길이 보전하세\n\n가을 하늘 공활한데 높고 구름 없이 밝은 달은 우리 가슴 일편단심일세 무궁화 삼천리 화려 강산 대한 사람 대한으로 길이 보전하세\n\n이 기상과 이 맘으로 충성을 다하여 괴로우나 즐거우나 나라 사랑하세 무궁화 삼천리 화려 강산 대한 사람 대한으로 길이 보전하세`;
+        const fullText = `${anthem}\n\n${anthem}\n\n${anthem}\n\n${anthem}`;
+
         const aiMsg: Message = {
           id: (Date.now() + 1).toString(),
-          text: `동해 물과 백두산이 마르고 닳도록 하느님이 보우하사 우리나라 만세 무궁화 삼천리 화려 강산 대한 사람 대한으로 길이 보전하세\n\n남산 위에 저 소나무 철갑을 두른 듯 바람 서리 불변함은 `,
+          text: fullText,
+          displayedText: "",
           sender: "ai",
+          isTyping: true,
         };
         setMessages((prevMessages) => [...prevMessages, aiMsg]);
       }, 1500);
@@ -51,6 +60,58 @@ export default function RootLayout() {
   };
 
   const lastScrolledMessageId = useRef<string | null>(null);
+
+  // 타이핑 효과를 위한 useEffect
+  useEffect(() => {
+    // 타이핑 중인 메시지 찾기
+    const typingMessage = messages.find((msg) => msg.isTyping && msg.sender === "ai");
+
+    if (typingMessage && typingMessage.displayedText !== undefined) {
+      const fullText = typingMessage.text;
+      const currentDisplayed = typingMessage.displayedText;
+
+      // 아직 모든 텍스트를 표시하지 않았다면
+      if (currentDisplayed.length < fullText.length) {
+        // 기존 인터벌 정리
+        if (typingIntervalRef.current) {
+          clearInterval(typingIntervalRef.current);
+        }
+
+        // 한 글자씩 추가하는 인터벌 설정
+        typingIntervalRef.current = setInterval(() => {
+          setMessages((prevMessages) =>
+            prevMessages.map((msg) => {
+              if (msg.id === typingMessage.id && msg.isTyping) {
+                const newDisplayedText = fullText.slice(0, msg.displayedText!.length + 1);
+                const isComplete = newDisplayedText.length === fullText.length;
+
+                return {
+                  ...msg,
+                  displayedText: newDisplayedText,
+                  isTyping: !isComplete,
+                };
+              }
+              return msg;
+            })
+          );
+        }, 30); // 30ms마다 한 글자씩 (조절 가능)
+      } else {
+        // 타이핑 완료
+        if (typingIntervalRef.current) {
+          clearInterval(typingIntervalRef.current);
+          typingIntervalRef.current = null;
+        }
+      }
+    }
+
+    // cleanup 함수
+    return () => {
+      if (typingIntervalRef.current) {
+        clearInterval(typingIntervalRef.current);
+        typingIntervalRef.current = null;
+      }
+    };
+  }, [messages]);
 
   // 메시지가 변경될 때마다 실행됩니다.
   useEffect(() => {
@@ -152,6 +213,10 @@ export default function RootLayout() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* TopBar */}
+      <View style={styles.topBar}>
+        <Text style={styles.topBarTitle}>AI상담사</Text>
+      </View>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardAvoidingView}
@@ -166,12 +231,17 @@ export default function RootLayout() {
                 item.sender === "user" ? styles.userMessage : styles.aiMessage,
               ]}
             >
-              <Text style={styles.messageText}>{item.text}</Text>
+              <Text style={styles.messageText}>
+                {item.sender === "ai" && item.displayedText !== undefined
+                  ? item.displayedText
+                  : item.text}
+              </Text>
             </View>
           )}
           keyExtractor={(item) => item.id}
           style={styles.list}
           contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={() => <View style={{ height: 30 }} />}
           ListFooterComponent={<View style={{ height: footerHeight }} />}
           onScrollToIndexFailed={onScrollToIndexFailed}
           onScrollBeginDrag={handleScrollBeginDrag}
@@ -196,6 +266,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "white",
+  },
+  topBar: {
+    height: 80,
+    backgroundColor: "#007AFF",
+    justifyContent: "center",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+  },
+  topBarTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "white",
   },
   keyboardAvoidingView: {
     flex: 1,
