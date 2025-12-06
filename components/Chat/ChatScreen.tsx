@@ -47,27 +47,24 @@ export const ChatScreen = () => {
     const insets = useSafeAreaInsets();
     const lastScrolledUserMessageId = useRef<string | null>(null);
 
+    // 최신 메시지가 아래(인덱스 0)에 오도록 데이터 뒤집기
+    const reversedItems = React.useMemo(() => [...items].reverse(), [items]);
+
     // 사용자 메시지가 추가될 때 해당 메시지를 최상단으로 스크롤
     useEffect(() => {
-        if (items.length > 0) {
-            // 마지막 사용자 메시지 찾기 (뒤에서부터 탐색)
-            let lastUserMessageIndex = -1;
-            for (let i = items.length - 1; i >= 0; i--) {
-                if (items[i].type === 'user_question') {
-                    lastUserMessageIndex = i;
-                    break;
-                }
-            }
-            
-            if (lastUserMessageIndex !== -1) {
-                const lastUserMessage = items[lastUserMessageIndex];
-                
+        if (reversedItems.length > 0) {
+            // 뒤집힌 리스트이므로 앞에서부터 찾으면 최신 메시지임
+            const firstUserMessageIndex = reversedItems.findIndex(item => item.type === 'user_question');
+
+            if (firstUserMessageIndex !== -1) {
+                const lastUserMessage = reversedItems[firstUserMessageIndex];
+
                 // 이미 스크롤한 메시지가 아니면 스크롤
                 if (lastUserMessage.id !== lastScrolledUserMessageId.current) {
                     setTimeout(() => {
                         flatListRef.current?.scrollToIndex({
-                            index: lastUserMessageIndex,
-                            viewPosition: 0, // 최상단에 위치
+                            index: firstUserMessageIndex,
+                            viewPosition: 0, // Inverted에서 1은 화면 상단(Start는 바닥, End는 천장)
                             animated: true,
                         });
                         lastScrolledUserMessageId.current = lastUserMessage.id;
@@ -75,7 +72,7 @@ export const ChatScreen = () => {
                 }
             }
         }
-    }, [items]);
+    }, [reversedItems]);
 
     const onScrollToIndexFailed = (info: {
         index: number;
@@ -106,13 +103,17 @@ export const ChatScreen = () => {
             <View style={[styles.container, { paddingBottom: insets.bottom }]}>
                 <FlatList
                     ref={flatListRef}
-                    data={items}
+                    data={reversedItems}
+                    inverted
                     renderItem={({ item, index }) => <ChatItemRenderer item={item} index={index} />}
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.listContent}
                     style={styles.list}
-                    ListFooterComponent={<View style={{ height: height * 0.8 }} />}
+                    ListHeaderComponent={<View style={{ height: height * 0.8 }} />}
                     onScrollToIndexFailed={onScrollToIndexFailed}
+                    maintainVisibleContentPosition={{
+                        minIndexForVisible: 0,
+                    }}
                 />
 
                 <View style={styles.inputContainer}>
