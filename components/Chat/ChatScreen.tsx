@@ -47,32 +47,47 @@ export const ChatScreen = () => {
     const insets = useSafeAreaInsets();
     const lastScrolledUserMessageId = useRef<string | null>(null);
 
-    // 최신 메시지가 아래(인덱스 0)에 오도록 데이터 뒤집기
-    const reversedItems = React.useMemo(() => [...items].reverse(), [items]);
+    const pendingScrollIndex = useRef<number | null>(null);
 
-    // 사용자 메시지가 추가될 때 해당 메시지를 최상단으로 스크롤
+    // 사용자 메시지가 추가될 때 스크롤할 인덱스 저장
     useEffect(() => {
-        if (reversedItems.length > 0) {
-            // 뒤집힌 리스트이므로 앞에서부터 찾으면 최신 메시지임
-            const firstUserMessageIndex = reversedItems.findIndex(item => item.type === 'user_question');
+        if (items.length > 0) {
+            // 마지막 사용자 메시지 찾기 (뒤에서부터 탐색)
+            let lastUserMessageIndex = -1;
+            for (let i = items.length - 1; i >= 0; i--) {
+                if (items[i].type === 'user_question') {
+                    lastUserMessageIndex = i;
+                    break;
+                }
+            }
 
-            if (firstUserMessageIndex !== -1) {
-                const lastUserMessage = reversedItems[firstUserMessageIndex];
+            if (lastUserMessageIndex !== -1) {
+                const lastUserMessage = items[lastUserMessageIndex];
 
-                // 이미 스크롤한 메시지가 아니면 스크롤
+                // 이미 스크롤한 메시지가 아니면 스크롤 예약
                 if (lastUserMessage.id !== lastScrolledUserMessageId.current) {
-                    setTimeout(() => {
-                        flatListRef.current?.scrollToIndex({
-                            index: firstUserMessageIndex,
-                            viewPosition: 0, // Inverted에서 1은 화면 상단(Start는 바닥, End는 천장)
-                            animated: true,
-                        });
-                        lastScrolledUserMessageId.current = lastUserMessage.id;
-                    }, 100);
+                    pendingScrollIndex.current = lastUserMessageIndex;
+                    lastScrolledUserMessageId.current = lastUserMessage.id;
                 }
             }
         }
-    }, [reversedItems]);
+    }, [items]);
+
+    // 콘텐츠가 그려진 후 스크롤 실행
+    const onContentSizeChange = () => {
+        if (pendingScrollIndex.current !== null) {
+            flatListRef.current?.scrollToIndex({
+                index: pendingScrollIndex.current,
+                viewPosition: 0, // 최상단에 위치
+                animated: false, // 깜빡임 방지를 위해 애니메이션 끔
+            });
+
+            // AI 응답이 끝나면 스크롤 예약 해제
+            if (!isGenerating) {
+                pendingScrollIndex.current = null;
+            }
+        }
+    };
 
     const onScrollToIndexFailed = (info: {
         index: number;
@@ -103,17 +118,14 @@ export const ChatScreen = () => {
             <View style={[styles.container, { paddingBottom: insets.bottom }]}>
                 <FlatList
                     ref={flatListRef}
-                    data={reversedItems}
-                    inverted
+                    data={items}
                     renderItem={({ item, index }) => <ChatItemRenderer item={item} index={index} />}
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.listContent}
                     style={styles.list}
-                    ListHeaderComponent={<View style={{ height: height * 0.8 }} />}
+                    ListFooterComponent={<View style={{ height: height * 0.8 }} />}
                     onScrollToIndexFailed={onScrollToIndexFailed}
-                    maintainVisibleContentPosition={{
-                        minIndexForVisible: 0,
-                    }}
+                    onContentSizeChange={onContentSizeChange}
                 />
 
                 <View style={styles.inputContainer}>
