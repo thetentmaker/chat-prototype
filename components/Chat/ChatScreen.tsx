@@ -76,10 +76,9 @@ export const ChatScreen = () => {
     // 콘텐츠가 그려진 후 스크롤 실행
     const onContentSizeChange = () => {
         if (pendingScrollIndex.current !== null) {
-            flatListRef.current?.scrollToIndex({
-                index: pendingScrollIndex.current,
-                viewPosition: 0, // 최상단에 위치
-                animated: false, // 깜빡임 방지를 위해 애니메이션 끔
+            flatListRef.current?.scrollToOffset({
+                offset: Number.MAX_SAFE_INTEGER,
+                animated: false,
             });
 
             // AI 응답이 끝나면 스크롤 예약 해제
