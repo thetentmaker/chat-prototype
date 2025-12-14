@@ -1,7 +1,8 @@
 import { useAppDispatch, useAppSelector } from '@/hooks/useAppDispatch';
 import { Message, sendMessage } from '@/store/chatSlice';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+    ActivityIndicator,
     FlatList,
     Platform,
     StyleSheet,
@@ -16,8 +17,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function AgentChatScreen() {
     const [inputText, setInputText] = useState('');
     const flatListRef = useRef<FlatList>(null);
+    const [isInitializing, setIsInitializing] = useState(true);
+    // 각각 독립적으로 최초 1회 실행을 보장하기 위한 변수들
+    const hasScrolledForContent = useRef(false);
+    const hasScrolledForLayout = useRef(false);
+
     const dispatch = useAppDispatch();
     const { messages, isLoading } = useAppSelector((state) => state.chat);
+
+    // 화면 진입 시 초기 로딩 처리 (UI Freezing 방지)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setIsInitializing(false);
+        }, 500); // 0.5초 로딩
+        return () => clearTimeout(timer);
+    }, []);
 
     const handleSend = () => {
         if (inputText.trim() === '') return;
@@ -25,7 +39,7 @@ export default function AgentChatScreen() {
         dispatch(sendMessage(inputText.trim()));
         setInputText('');
 
-        // 메시지 전송 시 스크롤을 아래로 이동 (Footer 덕분에 메시지를 상단에 위치시킬 수 있음)
+        // 메시지 전송 시에는 수동으로 스크롤 (onContentSizeChange 사용 안 함)
         setTimeout(() => {
             flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);
@@ -44,6 +58,17 @@ export default function AgentChatScreen() {
         );
     };
 
+    if (isInitializing) {
+        return (
+            <SafeAreaView style={styles.container} edges={['bottom']}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                    <Text style={styles.loadingText}>대화 불러오는 중...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView style={styles.container} edges={['bottom']}>
             <KeyboardAvoidingView
@@ -58,11 +83,27 @@ export default function AgentChatScreen() {
                     renderItem={renderMessage}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
+                    initialNumToRender={messages.length > 0 ? messages.length : 10} // 모든 아이템을 미리 렌더링하여 스크롤 위치 계산 정확도 확보
+                    // initialScrollIndex={messages.length > 0 ? messages.length - 1 : 0}
                     ListFooterComponent={<View style={{ height: 400 }} />}
                     onContentSizeChange={() => {
-                        // 리스트 크기가 변경되면(화면 진입 및 새 메시지) 즉시 바닥으로 스크롤
-                        if (messages.length > 0) {
-                            flatListRef.current?.scrollToEnd({ animated: false });
+                        // 첫 진입 시 (내용물 크기 완성 시점)
+                        if (messages.length > 0 && !hasScrolledForContent.current) {
+                            hasScrolledForContent.current = true;
+                            // 렌더링 타이밍 이슈로 인해 약간의 지연 후 스크롤
+                            setTimeout(() => {
+                                flatListRef.current?.scrollToEnd({ animated: false });
+                            }, 100); // 로딩 후 렌더링이라 0.1초면 충분함
+                        }
+                    }}
+                    onLayout={() => {
+                        // 첫 진입 시 (레이아웃 완성 시점)
+                        if (messages.length > 0 && !hasScrolledForLayout.current) {
+                            hasScrolledForLayout.current = true;
+                            // 렌더링 타이밍 이슈로 인해 약간의 지연 후 스크롤
+                            setTimeout(() => {
+                                // flatListRef.current?.scrollToEnd({ animated: false });
+                            }, 100); // 로딩 후 렌더링이라 0.1초면 충분함
                         }
                     }}
                 />
@@ -104,6 +145,16 @@ const styles = StyleSheet.create({
     listContent: {
         padding: 16,
         flexGrow: 1,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 10,
+        color: '#666',
+        fontSize: 16,
     },
     messageContainer: {
         marginVertical: 8,
