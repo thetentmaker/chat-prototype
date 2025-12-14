@@ -1,44 +1,69 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-export interface ChatItem {
+export interface Message {
   id: string;
-  type: 'user_question' | 'ai_status' | 'ai_answer_chunk';
+  role: 'user' | 'agent';
   content: string;
+  timestamp: number;
 }
 
 interface ChatState {
-  items: ChatItem[];
-  isGenerating: boolean;
+  messages: Message[];
+  isLoading: boolean;
 }
 
 const initialState: ChatState = {
-  items: [],
-  isGenerating: false,
+  messages: [],
+  isLoading: false,
 };
 
-// Mock response text
-const MOCK_RESPONSE = `This is a simulated AI response.\n\nI am built using React Native and Redux.\n\nI am streaming this text chunk by chunk to demonstrate the "Multiple Items" architecture you requested.`;
+// 애국가 4절 전체
+const AEGUKGA = `동해물과 백두산이 마르고 닳도록
+하느님이 보우하사 우리나라 만세
+무궁화 삼천리 화려강산
+대한사람 대한으로 길이 보전하세
 
-export const streamResponse = createAsyncThunk(
-  'chat/streamResponse',
-  async (_, { dispatch }) => {
-    // 1. Simulate network delay (Thinking time)
-    await new Promise(resolve => setTimeout(resolve, 1500));
+남산 위에 저 소나무 철갑을 두른 듯
+바람서리 불변함은 우리 기상일세
+무궁화 삼천리 화려강산
+대한사람 대한으로 길이 보전하세
 
-    // 2. Remove status item
-    dispatch(chatSlice.actions.removeStatus());
+가을 하늘 공활한데 높고 구름 없이
+밝은 달은 우리 가슴 일편단심일세
+무궁화 삼천리 화려강산
+대한사람 대한으로 길이 보전하세
 
-    // 3. Stream chunks
-    // We split by newlines to simulate paragraphs or blocks
-    // This makes "Multiple Items" presentation look like separate paragraphs/bubbles
-    const chunks = MOCK_RESPONSE.split(/\n\n/); 
-    
-    for (const chunk of chunks) {
-      if (!chunk.trim()) continue;
-      dispatch(chatSlice.actions.addAnswerChunk(chunk.trim()));
-      // Random delay between 500ms and 1500ms for block simulation
-      await new Promise(resolve => setTimeout(resolve, Math.random() * 1000 + 500));
-    }
+이 기상과 이 맘으로 충성을 다하여
+괴로우나 즐거우나 나라 사랑하세
+무궁화 삼천리 화려강산
+대한사람 대한으로 길이 보전하세`;
+
+// 1초 후 Agent 응답을 생성하는 비동기 thunk
+export const sendMessage = createAsyncThunk(
+  'chat/sendMessage',
+  async (userMessage: string, { dispatch }) => {
+    // 유저 메시지 추가
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: userMessage,
+      timestamp: Date.now(),
+    };
+    dispatch(addMessage(userMsg));
+
+    // 1초 대기
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Agent 응답 추가
+    const agentMsg: Message = {
+      id: (Date.now() + 1).toString(),
+      role: 'agent',
+      content: AEGUKGA,
+      timestamp: Date.now(),
+    };
+    dispatch(addMessage(agentMsg));
+
+    return agentMsg;
   }
 );
 
@@ -46,41 +71,26 @@ const chatSlice = createSlice({
   name: 'chat',
   initialState,
   reducers: {
-    addUserMessage: (state, action: PayloadAction<string>) => {
-      state.items.push({
-        id: Date.now().toString(),
-        type: 'user_question',
-        content: action.payload,
-      });
-      // Add status immediately after
-      state.items.push({
-        id: 'status-' + Date.now(),
-        type: 'ai_status',
-        content: 'Thinking...',
-      });
-      state.isGenerating = true;
+    addMessage: (state, action: PayloadAction<Message>) => {
+      state.messages.push(action.payload);
     },
-    removeStatus: (state) => {
-      state.items = state.items.filter(item => item.type !== 'ai_status');
+    clearMessages: (state) => {
+      state.messages = [];
     },
-    addAnswerChunk: (state, action: PayloadAction<string>) => {
-      state.items.push({
-        id: 'chunk-' + Date.now() + Math.random(),
-        type: 'ai_answer_chunk',
-        content: action.payload,
-      });
-    },
-    resetChat: (state) => {
-      state.items = [];
-      state.isGenerating = false;
-    }
   },
   extraReducers: (builder) => {
-    builder.addCase(streamResponse.fulfilled, (state) => {
-      state.isGenerating = false;
-    });
-  }
+    builder
+      .addCase(sendMessage.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(sendMessage.fulfilled, (state) => {
+        state.isLoading = false;
+      })
+      .addCase(sendMessage.rejected, (state) => {
+        state.isLoading = false;
+      });
+  },
 });
 
-export const { addUserMessage, removeStatus, addAnswerChunk, resetChat } = chatSlice.actions;
+export const { addMessage, clearMessages } = chatSlice.actions;
 export default chatSlice.reducer;
